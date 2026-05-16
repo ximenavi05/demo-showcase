@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Calculadora Rust + WebAssembly</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f172a, #1e293b, #334155);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 460px;
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(14px);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .badge {
+      display: inline-block;
+      background: #38bdf8;
+      color: #082f49;
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      font-size: 30px;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      font-size: 15px;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .input-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      color: #e2e8f0;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      border: none;
+      outline: none;
+      font-size: 18px;
+      background: rgba(255, 255, 255, 0.95);
+      color: #0f172a;
+    }
+
+    input:focus {
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.45);
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    button {
+      border: none;
+      padding: 14px;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s ease;
+      color: white;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+    }
+
+    .add {
+      background: #22c55e;
+    }
+
+    .subtract {
+      background: #f97316;
+    }
+
+    .multiply {
+      background: #8b5cf6;
+    }
+
+    .divide {
+      background: #ef4444;
+    }
+
+    .result-box {
+      margin-top: 28px;
+      padding: 22px;
+      border-radius: 18px;
+      background: rgba(15, 23, 42, 0.8);
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .result-label {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    #result {
+      font-size: 34px;
+      font-weight: bold;
+      color: #38bdf8;
+      word-break: break-word;
+    }
+
+    .status {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 14px;
+      color: #cbd5e1;
+    }
+
+    .footer {
+      margin-top: 22px;
+      text-align: center;
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        padding: 24px;
+      }
+
+      h1 {
+        font-size: 25px;
+      }
+
+      .buttons {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <span class="badge">Rust + WebAssembly</span>
+
+    <h1>Calculadora WASM</h1>
+
+    <div class="input-group">
+      <label for="num1">Primer número</label>
+      <input type="number" id="num1" placeholder="Ejemplo: 10" />
+    </div>
+
+    <div class="input-group">
+      <label for="num2">Segundo número</label>
+      <input type="number" id="num2" placeholder="Ejemplo: 5" />
+    </div>
+
+    <section class="buttons">
+      <button class="add" onclick="calculate('add')">
+        Sumar
+      </button>
+
+      <button class="subtract" onclick="calculate('subtract')">
+        Restar
+      </button>
+
+      <button class="multiply" onclick="calculate('multiply')">
+        Multiplicar
+      </button>
+
+      <button class="divide" onclick="calculate('divide')">
+        Dividir
+      </button>
+    </section>
+
+    <section class="result-box">
+      <p class="result-label">Resultado</p>
+      <p id="result">---</p>
+    </section>
+
+    <p class="status" id="status">
+      Cargando WebAssembly...
+    </p>
+  </main>
+
+  <script type="module">
+    import init, {
+      add,
+      subtract,
+      multiply,
+      divide
+    } from "./pkg/mult_demo.js";
+
+    let wasmReady = false;
+
+    const resultElement = document.getElementById("result");
+    const statusElement = document.getElementById("status");
+
+    async function startWasm() {
+      try {
+        await init();
+
+        wasmReady = true;
+        statusElement.textContent = "WebAssembly cargado correctamente";
+        console.log("WASM cargado correctamente");
+      } catch (error) {
+        statusElement.textContent = "Error al cargar WebAssembly";
+        resultElement.textContent = "Error";
+
+        console.error("Error cargando WASM:", error);
+      }
+    }
+
+    startWasm();
+
+    window.calculate = function(operation) {
+      if (!wasmReady) {
+        resultElement.textContent = "Cargando WASM...";
+        return;
+      }
+
+      const a = parseInt(document.getElementById("num1").value);
+      const b = parseInt(document.getElementById("num2").value);
+
+      if (isNaN(a) || isNaN(b)) {
+        resultElement.textContent = "Ingresa ambos números";
+        return;
+      }
+
+      try {
+        let result;
+
+        if (operation === "add") {
+          result = add(a, b);
+        } else if (operation === "subtract") {
+          result = subtract(a, b);
+        } else if (operation === "multiply") {
+          result = multiply(a, b);
+        } else if (operation === "divide") {
+          if (b === 0) {
+            resultElement.textContent = "No se puede dividir entre 0";
+            return;
+          }
+
+          result = divide(a, b);
+        }
+
+        resultElement.textContent = result;
+      } catch (error) {
+        resultElement.textContent = "Error";
+        console.error("Error ejecutando operación:", error);
+      }
+    };
+  </script>
+</body>
+</html>
